@@ -1,5 +1,6 @@
 orl_faces/*
 *.pdf
+*.txt
 
 # Compiled Object files
 *.slo
