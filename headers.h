@@ -13,7 +13,6 @@
 #include <armadillo>
 #include <limits.h>
 #include <map>
-#include <queue>
 
 using namespace std;
 using namespace cv;
@@ -34,6 +33,7 @@ class Facemash{
     int C;                      // no. of classes.
     vec numClass;               // no. of training images in a class.
     mat cl_means;               // mean image for each class.
+    vector< mat > pattern_class;// train images for each class. Used for S_w.
  public:
      Facemash(){
          read_called = 0;
@@ -70,24 +70,23 @@ void Facemash::readData(string filename){
         vector<double> array((double*)m.data, (double*)m.data + m.rows * m.cols);
         v.push_back(array);
     }
-
-    ti.close();
     n = v[0].size();
     N = v.size();
     P.set_size(n,N);
+    ti.close();
 
     for(int i=0; i < v.size(); i++){
         P.col(i) = conv_to< colvec >::from(v[i]);
         cl_unique[classes[i]]++;
     }
     C = cl_unique.size();
-    numClass.set_size(C);
     X = P;  // do not modify the original pattern images.
+
 }
 
 void Facemash::sub_mean(){
     mu = mean(X,1);
-    for(int i=0; i < X.n_cols; i++){
+    for(int i = 0; i < X.n_cols; i++){
         X.col(i) -= mu;
     }
 }
@@ -148,9 +147,15 @@ void Facemash::save_model(){
     fout.close();
 }
 
+int q = 0;
 void Facemash::test_eigenfaces(){
     // weights for test data.
-    Y_test = W.t() * X;
+    if(q == 0){
+        Y_test = W.t() * X;
+    }
+    else
+        Y_test = W.t() * P;
+    q++;
     //For each test vector, find the closest training vector.
     // Store the index of the closest training data point in the following matrix.
     closest_models.set_size(Y_test.n_cols);
@@ -182,57 +187,106 @@ double Facemash::accuracy(){
 
 void Facemash::class_means(){
     cl_means = zeros< mat >(n,C);
+    numClass.set_size(C);
+    for(int i = 0; i < C; i++){
+        numClass[i] = 0;
+    }
     for(int i = 0; i < P.n_cols; i++){
         int c = atoi(classes[i].c_str()) - 1;
         cl_means.col(c) += P.col(i);
         numClass[c]++;
     }
+
     for(int i = 0; i < C; i++){
         cl_means.col(i) /= numClass[i];
     }
     mu = mean(P,1); // total mean.
+
+    int indices[C];
+    for(int i = 0; i < C; i++){
+        indices[i] = 0;
+        mat t = zeros< mat >(n,numClass[i]);
+        pattern_class.push_back(t);
+    }
+
+    // classify images.
+    for(int i = 0; i < N; i++){
+        int cl = atoi(classes[i].c_str()) - 1;
+        pattern_class[cl].col(indices[cl]++) = P.col(i);
+    }
+
+    // sub mean from each class.
+    for(int i = 0; i < C; i++){
+        for(int j = 0; j < numClass[i]; j++){
+            pattern_class[i].col(j) -= cl_means.col(i);
+        }
+    }
+
 }
+
 void Facemash::fisherfaces(){
     mat W_pca = eigenfaces(N-C);
 
 
     mat S_b = zeros< mat > (n,n);
     mat S_w = zeros< mat > (n,n);
-    mat temp = P;
-    // subtract class mean from pattern images.
-    for(int j = 0; j < N; j++){
-        temp.col(j) = temp.col(j) - cl_means.col(atoi(classes[j].c_str()) - 1);
-    }
+    // mat temp = P;
+    // // subtract class mean from pattern images.
+    // for(int j = 0; j < N; j++){
+    //     temp.col(j) = temp.col(j) - cl_means.col(atoi(classes[j].c_str()) - 1);
+    // }
     cout << "Scatter evaluation begins: " << endl;
 
-    for(int i = 0; i < N; i++){
-        S_w += temp.col(i)*(temp.col(i).t());
-        if(i%5 == 0)
-            cout << i << " stages of " << N + C << "done" << endl;
-    }
+    // for(int i = 0; i < N; i++){
+    //     S_w += temp.col(i)*(temp.col(i).t());
+    //     if(i%5 == 0)
+    //         cout << i << " stages of " << N + C << "done" << endl;
+    // }
+
+
     for(int i = 0; i < C; i++){
+        S_w += pattern_class[i] * pattern_class[i].t();
         S_b = S_b + numClass[i] * (cl_means.col(i) - mu) * ((cl_means.col(i) - mu).t());
         if(i%5 == 0)
-            cout << N + i << " stages of " << N + C << "done" << endl;
+            cout << i << " stages of " << C << "done" << endl;
     }
-    cout << N + C << " stages of " << N + C << "done" << endl;
+    cout << C << " stages of " << C << "done" << endl;
     cout << "Scatter matrices evaluated"<<endl;
     // reducing dimensions to N-C, since S_w is singular.
     S_b = W_pca.t() * S_b * W_pca;
     S_w = W_pca.t() * S_w * W_pca;
 
-    mat W_fld;
     cx_mat evec;
     cx_vec eval;
     eig_gen(eval, evec, inv(S_w) * S_b );
+    mat eigvec_pseudo = conv_to< mat >::from(evec);
+    vec eigval_pseudo = conv_to< vec >::from(eval);
 
-    W_fld = conv_to< mat >::from(evec);
+    // Select best m = c - 1 eigenvectors. on the basis of decreasing eigenvalues.
+    int m = C - 1;
+    mat W_fld(N-C,m);
 
-    W = (W_fld.t() * W_pca.t()).t();
+    for(int i=0; i < m; i++){
+        double max_val = -1;
+        int index = -1;
+        for(int j=0; j < eigval_pseudo.n_rows ; j++){
+            if(eigval_pseudo[j] > max_val){
+                max_val = eigval_pseudo[j];
+                index = j;
+            }
+        }
+        eigval_pseudo[index] = -1;
+        W_fld.col(i) = eigvec_pseudo.col(i);
+    }
+    W = W_pca * W_fld;          // n x m
     cout << "Saving model\n";
     save_model();
     cout << "Reducing dimensions\n";
-    Y = W.t() * P;
+
+    for(int i = 0;i < W.n_cols; i++){
+        W.col(i) /= norm(W.col(i),"inf");
+    }
+    Y = W.t() * P;              // m x N
 }
 
 void Facemash::test_fisherfaces(){
