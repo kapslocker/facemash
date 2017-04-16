@@ -9,7 +9,7 @@ for i in range(1,41):
     l = os.listdir(im_dir)
     for j in range(len(l)):
         data.write(im_dir+"/"+l[j] + "\t" + str(i) + "\n")
-        if j<4:
+        if j>7:
             test.write(im_dir+"/"+l[j] + "\t" + str(i) + "\n")
         else:
             train.write(im_dir+"/"+l[j] + "\t" + str(i) + "\n")

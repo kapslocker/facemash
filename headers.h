@@ -44,10 +44,9 @@ class Facemash{
     void fisherfaces();
     void save_model();
 
-    void test_eigenfaces();
+    void test();
     double accuracy();
     void class_means();
-    void test_fisherfaces();
 };
 
 
@@ -81,7 +80,6 @@ void Facemash::readData(string filename){
     }
     C = cl_unique.size();
     X = P;  // do not modify the original pattern images.
-
 }
 
 void Facemash::sub_mean(){
@@ -116,7 +114,7 @@ mat Facemash::eigenfaces(int K = 30){
                 }
             }
             eigval_pseudo[index] = -1;
-            eigvec.col(i) = eigvec_pseudo.col(i);
+            eigvec.col(i) = eigvec_pseudo.col(index);
         }
 
         //Use these eigenvectors to get K eigenvalues of the covariance matrix.
@@ -129,9 +127,9 @@ mat Facemash::eigenfaces(int K = 30){
             W.col(i) /= norm(W.col(i),"inf");
         }
 
-        // get coordinates for the training data:
+        // Traansformed feature space:
         Y = W.t() * X;
-        cout << "Weights calculated: " << Y.n_rows << " x " << Y.n_cols << endl;
+        cout << "Images transformed: " << Y.n_rows << " x " << Y.n_cols << endl;
 
         return W;
 }
@@ -148,13 +146,13 @@ void Facemash::save_model(){
 }
 
 int q = 0;
-void Facemash::test_eigenfaces(){
+void Facemash::test(){
     // weights for test data.
     if(q == 0){
-        Y_test = W.t() * X;
+        Y_test = W.t() * X;             // for eigenfaces
     }
     else
-        Y_test = W.t() * P;
+        Y_test = W.t() * P;             // for fisherfaces
     q++;
     //For each test vector, find the closest training vector.
     // Store the index of the closest training data point in the following matrix.
@@ -165,7 +163,6 @@ void Facemash::test_eigenfaces(){
         for(int j = 0; j < Y.n_cols; j++){
             double dist = norm(Y_test.col(i) - Y.col(j));
             if(dist < min_dist){
-                //TODO: Put threshold here.
                 min_dist = dist;
                 closest_models(i) = j;
             }
@@ -227,22 +224,16 @@ void Facemash::class_means(){
 void Facemash::fisherfaces(){
     mat W_pca = eigenfaces(N-C);
 
+    // testing
+    P = W_pca.t() * P;
+    N = P.n_cols;
+    n = P.n_rows;
+    class_means();
 
     mat S_b = zeros< mat > (n,n);
     mat S_w = zeros< mat > (n,n);
-    // mat temp = P;
-    // // subtract class mean from pattern images.
-    // for(int j = 0; j < N; j++){
-    //     temp.col(j) = temp.col(j) - cl_means.col(atoi(classes[j].c_str()) - 1);
-    // }
+
     cout << "Scatter evaluation begins: " << endl;
-
-    // for(int i = 0; i < N; i++){
-    //     S_w += temp.col(i)*(temp.col(i).t());
-    //     if(i%5 == 0)
-    //         cout << i << " stages of " << N + C << "done" << endl;
-    // }
-
 
     for(int i = 0; i < C; i++){
         S_w += pattern_class[i] * pattern_class[i].t();
@@ -253,8 +244,6 @@ void Facemash::fisherfaces(){
     cout << C << " stages of " << C << "done" << endl;
     cout << "Scatter matrices evaluated"<<endl;
     // reducing dimensions to N-C, since S_w is singular.
-    S_b = W_pca.t() * S_b * W_pca;
-    S_w = W_pca.t() * S_w * W_pca;
 
     cx_mat evec;
     cx_vec eval;
@@ -276,22 +265,16 @@ void Facemash::fisherfaces(){
             }
         }
         eigval_pseudo[index] = -1;
-        W_fld.col(i) = eigvec_pseudo.col(i);
+        W_fld.col(i) = eigvec_pseudo.col(index);
     }
-    W = W_pca * W_fld;          // n x m
+    W = W_pca * W_fld;          // n x m        // to be performed on test dataset.
     cout << "Saving model\n";
     save_model();
     cout << "Reducing dimensions\n";
 
-    for(int i = 0;i < W.n_cols; i++){
-        W.col(i) /= norm(W.col(i),"inf");
-    }
-    Y = W.t() * P;              // m x N
+    Y = W_fld.t() * P;              // m x N    // the train dataset has already been transformed by W_pca.
 }
 
-void Facemash::test_fisherfaces(){
-    test_eigenfaces();
-}
 
 
 #endif

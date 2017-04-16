@@ -25,7 +25,7 @@ int main(int argc, char const *argv[]) {
 
     facemash.readData("test.txt");
     facemash.sub_mean();
-    facemash.test_eigenfaces();
+    facemash.test();
 
     cout << "Eigenfaces: " << facemash.accuracy() << "%." << endl;
 
@@ -33,11 +33,11 @@ int main(int argc, char const *argv[]) {
     ////////////////////////////// Fisherfaces /////////////////////////////////
     cout << "Creating fisherfaces model\n";
     facemash.readData("train.txt");
-    facemash.class_means();
+//    facemash.class_means();
     facemash.fisherfaces();
     cout << " Model created and saved. Testing fisherfaces.\n";
     facemash.readData("test.txt");
-    facemash.test_fisherfaces();
+    facemash.test();
     cout << "Fisherfaces: " << facemash.accuracy() << "%.\n";
 
     return 0;
