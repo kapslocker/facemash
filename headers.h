@@ -13,6 +13,7 @@
 #include <armadillo>
 #include <limits.h>
 #include <map>
+#include <omp.h>
 
 using namespace std;
 using namespace cv;
@@ -75,9 +76,11 @@ void Facemash::readData(string filename){
     P.set_size(n,N);
     ti.close();
 
+
+    //Fill in the pattern matrix using read data
     for(int i=0; i < v.size(); i++){
         P.col(i) = conv_to< colvec >::from(v[i]);
-        cl_unique[classes[i]]++;
+        cl_unique[classes[i]]++;                    // Use the hashmap to get number of unique classes and how many times they occur
     }
     C = cl_unique.size();
     X = P;  // do not modify the original pattern images.
@@ -116,7 +119,7 @@ mat Facemash::eigenfaces(int K = 30){
                 }
             }
             eigval_pseudo[index] = -1;
-            eigvec.col(i) = eigvec_pseudo.col(i);
+            eigvec.col(i) = eigvec_pseudo.col(index);
         }
 
         //Use these eigenvectors to get K eigenvalues of the covariance matrix.
@@ -193,12 +196,12 @@ void Facemash::class_means(){
     }
     for(int i = 0; i < P.n_cols; i++){
         int c = atoi(classes[i].c_str()) - 1;
-        cl_means.col(c) += P.col(i);
-        numClass[c]++;
+        cl_means.col(c) += P.col(i);                // add in the values of corresponding class ke images
+        numClass[c]++;                              // store the number of times we get an image from same class
     }
 
     for(int i = 0; i < C; i++){
-        cl_means.col(i) /= numClass[i];
+        cl_means.col(i) /= (double)numClass[i];             // calculate per-class mean
     }
     mu = mean(P,1); // total mean.
 
@@ -215,13 +218,12 @@ void Facemash::class_means(){
         pattern_class[cl].col(indices[cl]++) = P.col(i);
     }
 
-    // sub mean from each class.
+    // sub mean from each class.  i.e. for calculating (Xj - Uj)^2 
     for(int i = 0; i < C; i++){
         for(int j = 0; j < numClass[i]; j++){
             pattern_class[i].col(j) -= cl_means.col(i);
         }
     }
-
 }
 
 void Facemash::fisherfaces(){
@@ -244,6 +246,8 @@ void Facemash::fisherfaces(){
     // }
 
 
+
+//    #pragma omp parallel for num_threads(omp_get_max_threads()) shared(S_b , S_w)
     for(int i = 0; i < C; i++){
         S_w += pattern_class[i] * pattern_class[i].t();
         S_b = S_b + numClass[i] * (cl_means.col(i) - mu) * ((cl_means.col(i) - mu).t());
@@ -252,7 +256,12 @@ void Facemash::fisherfaces(){
     }
     cout << C << " stages of " << C << "done" << endl;
     cout << "Scatter matrices evaluated"<<endl;
+
+
+
     // reducing dimensions to N-C, since S_w is singular.
+
+
     S_b = W_pca.t() * S_b * W_pca;
     S_w = W_pca.t() * S_w * W_pca;
 
@@ -276,9 +285,11 @@ void Facemash::fisherfaces(){
             }
         }
         eigval_pseudo[index] = -1;
-        W_fld.col(i) = eigvec_pseudo.col(i);
+        W_fld.col(i) = eigvec_pseudo.col(index);
     }
+
     W = W_pca * W_fld;          // n x m
+
     cout << "Saving model\n";
     save_model();
     cout << "Reducing dimensions\n";
