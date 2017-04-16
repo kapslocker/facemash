@@ -8,12 +8,15 @@ else
 	LDFLAGS=-Wall -fopenmp
 endif
 
-default: run
+default: build
 
 .PHONY: clean cleanall
 
+build: 
+	$(CC) assn2.cpp -std=c++11 -fopenmp -larmadillo -llapack -lblas -O3 `pkg-config --cflags --libs opencv` 
+
 run: 
-	$(CC) assn2.cpp -std=c++11 -larmadillo -llapack -lblas -O3 `pkg-config --cflags --libs opencv` 
+	time ./a.out
 
 clean:
 	rm -f *.o
