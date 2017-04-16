@@ -75,7 +75,11 @@ void Facemash::readData(string filename){
     P.set_size(n,N);
     ti.close();
 
-
+    for(int i = 0; i < N; i++){
+        if(v[i].size()!=v[0].size()){
+            cout << i << " " << classes[i] << endl;
+        }
+    }
     //Fill in the pattern matrix using read data
     for(int i=0; i < v.size(); i++){
         P.col(i) = conv_to< colvec >::from(v[i]);
@@ -235,17 +239,13 @@ void Facemash::fisherfaces(){
     mat S_b = zeros< mat > (n,n);
     mat S_w = zeros< mat > (n,n);
 
-    cout << "Scatter evaluation begins: " << endl;
-
 
 //    #pragma omp parallel for num_threads(omp_get_max_threads()) shared(S_b , S_w)
     for(int i = 0; i < C; i++){
         S_w += pattern_class[i] * pattern_class[i].t();
         S_b = S_b + numClass[i] * (cl_means.col(i) - mu) * ((cl_means.col(i) - mu).t());
-        if(i%5 == 0)
-            cout << i << " stages of " << C << "done" << endl;
     }
-    cout << C << " stages of " << C << "done" << endl;
+
     cout << "Scatter matrices evaluated"<<endl;
 
     cx_mat evec;

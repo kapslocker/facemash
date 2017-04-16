@@ -2,6 +2,7 @@ orl_faces/*
 *.pdf
 *.txt
 
+CroppedYale/*
 # Compiled Object files
 *.slo
 *.lo
