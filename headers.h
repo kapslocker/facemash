@@ -20,7 +20,8 @@ using namespace cv;
 using namespace arma;
 map<string, int> cl_unique;     // for identifying the number of unique classes.
 class Facemash{
-    int n;                      // Dimension of the origin image.
+    int x_dim, y_dim;           // dimensions of original image.
+    int n;                      // Dimension of the original image. (vector)
     int N;                      // no. of training images.
     mat P;                      // Pattern matrix.
     mat X;                      // mean normalised pattern matrix.
@@ -48,6 +49,7 @@ class Facemash{
     void test();
     double accuracy();
     void class_means();
+    void draw_faces(bool);
 };
 
 
@@ -67,6 +69,8 @@ void Facemash::readData(string filename){
 
         m = imread(fname.substr(0,fname.find('\t')),IMREAD_GRAYSCALE);
         m.convertTo(m,CV_64F);
+        x_dim = m.rows;
+        y_dim = m.cols;
         vector<double> array((double*)m.data, (double*)m.data + m.rows * m.cols);
         v.push_back(array);
     }
@@ -280,6 +284,42 @@ void Facemash::fisherfaces(){
     Y = W_fld.t() * P;              // m x N    // the train dataset has already been transformed by W_pca.
 }
 
+void Facemash::draw_faces(bool is_fisherfaces){
+    // draw vectors in W
 
+    for(int i = 0; i < W.n_cols; i++){
+        vector< double > vec = conv_to< std::vector<double> >::from(W.col(i));
+        double max = -1000;
+        double min = 0;
+
+        for(int j = 0; j < vec.size(); j++){
+            if(vec[j] < min){
+                min = vec[j];
+            }
+            else if(vec[j] > max){
+                max = vec[j];
+            }
+        }
+        for(int j = 0; j < vec.size(); j++){
+            vec[j] -= min;
+        }
+        max = -1;
+        for(int j = 0; j < vec.size(); j++){
+            if(vec[j] > max){
+                max = vec[j];
+            }
+        }
+        for(int j = 0; j < vec.size(); j++){
+            vec[j] *= 255.0/max;
+        }
+        cv::Mat tempMat = cv::Mat(vec).reshape(0, x_dim);
+        tempMat.convertTo(tempMat, CV_8UC1);
+        if(is_fisherfaces)
+            imwrite("Fisherfaces/" + to_string(i) + ".pgm", tempMat);
+        else
+            imwrite("Eigenfaces/"+ to_string(i) + ".pgm", tempMat);
+    }
+
+}
 
 #endif

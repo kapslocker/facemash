@@ -16,6 +16,8 @@ int main(int argc, char const *argv[]) {
 
     // for 30 best eigenvalues
     facemash.eigenfaces();
+
+    facemash.draw_faces(false);
     // facemash.save_model();
 
 
@@ -35,6 +37,7 @@ int main(int argc, char const *argv[]) {
     facemash.readData("train.txt");
 //    facemash.class_means();
     facemash.fisherfaces();
+    facemash.draw_faces(true);
     cout << " Model created and saved. Testing fisherfaces.\n";
     facemash.readData("test.txt");
     facemash.test();

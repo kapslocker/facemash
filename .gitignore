@@ -3,6 +3,9 @@ orl_faces/*
 *.txt
 
 CroppedYale/*
+ExtendedYaleB/*
+Fisherfaces/*
+Eigenfaces/*
 # Compiled Object files
 *.slo
 *.lo
